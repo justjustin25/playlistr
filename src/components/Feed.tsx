@@ -36,7 +36,7 @@ export default function Feed() {
 
       // Fetch user profiles based on user_id
       const profilesMap = new Map();
-      for (let post of data) {
+      for (const post of data) {
         const userId = post.user_id;
         if (!profilesMap.has(userId)) {
           const res = await fetch(`https://api.spotify.com/v1/users/${userId}`, {

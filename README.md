@@ -40,10 +40,10 @@ If you'd like access, feel free to reach out: justjustin25@gmail.com
 
 
 - Homepage (Music Feed)
-![Playlistr Homepage](/public/demo/home-feed.png)
+![Playlistr Homepage](/public/demo/home_feed.png)
 
 - User Profile Page
-![Playlistr User Profile](/public/demo/user-profile.png)
+![Playlistr User Profile](/public/demo/user_profile.png)
 
 - Personal Profile Page
 ![Playlistr Profile](/public/demo/profile.png)

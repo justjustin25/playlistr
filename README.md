@@ -67,5 +67,5 @@ If you’d like to chat, collaborate, or get access to the app, feel free to rea
 
 📧 Email: justjustin25@gmail.com
 
-💼 LinkedIn: https://www.linkedin.com/in/justin-stone34a
+💼 LinkedIn: https://www.linkedin.com/in/justin-stone34
 

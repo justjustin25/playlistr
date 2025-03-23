@@ -6,8 +6,8 @@ declare module 'next-auth' {
       name?: string | null;
       email?: string | null;
       image?: string | null;
-      id?: string; // ✅ Spotify user ID
+      id?: string;
     };
-    accessToken?: string; // ✅ your access token
+    accessToken?: string;
   }
 }

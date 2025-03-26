@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
-import { getAllPosts } from '@/lib/supabase';
+import { getAllPosts, getCommentsForPost, commentOnPost } from '@/lib/supabase';
+
 
 interface Post {
   id: string;
@@ -13,6 +14,7 @@ interface Post {
   type: string;
   caption?: string;
   tags?: string;
+  comments?: Comment[];
 }
 
 interface UserProfile {
@@ -20,22 +22,52 @@ interface UserProfile {
   images: { url: string }[];
 }
 
+interface Comment {
+  comment_id: string;
+  post_id: string;
+  user_id: string;
+  comment: string;
+  shared_at: string;
+}
+
 export default function Feed() {
   const { data: session } = useSession();
   const [posts, setPosts] = useState<Post[]>([]);
   const [userProfiles, setUserProfiles] = useState<Map<string, UserProfile>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
+  const [newComment, setNewComment] = useState<{ [postId: string]: string }>({});
+
 
   useEffect(() => {
     async function fetchPosts() {
       const data = await getAllPosts();
-      setPosts(data);
 
-      // Fetch user profiles based on user_id for each post
-      const profilesMap = new Map();
-      for (const post of data) {
-        const userId = post.user_id;
-        // Check if the user profile is already fetched, if not get it
+      // Fetch comments for each post and attach them
+      const postsWithComments = await Promise.all(
+        data.map(async (post) => {
+          const comments = await getCommentsForPost(post.id);
+          return {
+            ...post,
+            comments: comments || [],
+          };
+        })
+      );
+
+      setPosts(postsWithComments);
+
+      // Collect unique user IDs (from post authors + commenters)
+      const userIds = new Set<string>();
+      postsWithComments.forEach((post: Post) => {
+        userIds.add(post.user_id);
+        post.comments?.forEach((comment: Comment) => {
+          userIds.add(comment.user_id);
+        });
+      });
+
+      // Fetch profiles for all unique user IDs
+      const profilesMap = new Map<string, UserProfile>();
+      for (const userId of userIds) {
         if (!profilesMap.has(userId)) {
           const res = await fetch(`https://api.spotify.com/v1/users/${userId}`, {
             headers: {
@@ -43,7 +75,6 @@ export default function Feed() {
             },
           });
 
-          // Create a new user profile object and add it to the Map
           const userProfile: UserProfile = await res.json();
           profilesMap.set(userId, userProfile);
         }
@@ -57,27 +88,66 @@ export default function Feed() {
   }, [session]);
 
   if (loading) return (
-    <div className="text-zinc-400 text-center mt-8">
-      <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-green-400 mb-4"></div>
-      <p className="text-zinc-400">Loading content...</p>
+    <div className="text-zinc-400 text-center mt-8 flex flex-col items-center gap-2">
+      <div className="flex space-x-1">
+        <span className="w-4 h-4 bg-green-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
+        <span className="w-4 h-4 bg-green-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
+        <span className="w-4 h-4 bg-green-400 rounded-full animate-bounce" />
+      </div>
+      <span>Loading</span>
     </div>
   );
 
   if (posts.length === 0) return <p className="text-zinc-400 text-center mt-8">No posts yet!</p>;
+
+  async function handleCommentSubmit(postId: string) {
+    const commentText = newComment[postId]?.trim();
+    if (!commentText || !session?.user?.id) return;
+  
+    const result = await commentOnPost({
+      userId: session.user.id,
+      postId,
+      comment: commentText,
+    });
+  
+    if (!result || result.length === 0) {
+      console.warn('Insert may have failed, result:', result);
+      return;
+    }
+  
+    // Get the returned comment
+    const newCommentObj = result[0];
+
+    // Update posts state
+    setPosts((prevPosts) =>
+      prevPosts.map((post) =>
+        post.id === postId
+          ? {
+              ...post,
+              comments: [...(post.comments || []), newCommentObj],
+            }
+          : post
+      )
+    );
+  
+    // Clear input
+    setNewComment((prev) => ({ ...prev, [postId]: '' }));
+  }
+  
 
   return (
     <div className="space-y-6 px-4">
       {posts.map((post) => {
         const isCurrentUser = session?.user?.id === post.user_id;
         const profileLink = isCurrentUser ? '/profile' : `/user/${post.user_id}`;
-        const userProfile = userProfiles.get(post.user_id); // Get user profile from the Map
+        const userProfile = userProfiles.get(post.user_id);
 
         return (
           <div
             key={post.id}
             className="p-4 bg-zinc-800 rounded-xl shadow max-w-xl w-full mx-auto space-y-3"
           >
-            
+            {/* Spotify iframe */}
             <iframe
               src={
                 post.type === 'playlist'
@@ -91,10 +161,13 @@ export default function Feed() {
               loading="lazy"
               className="rounded"
             />
+
+            {/* Caption */}
             {post.caption && (
               <p className="text-sm text-zinc-300 italic">“{post.caption}”</p>
             )}
 
+            {/* Tags */}
             {post.tags && (
               <div className="flex flex-wrap gap-2 mt-1">
                 {post.tags
@@ -112,6 +185,7 @@ export default function Feed() {
               </div>
             )}
 
+            {/* User Profile */}
             <Link
               href={profileLink}
               className="flex items-center gap-2 group"
@@ -127,6 +201,84 @@ export default function Feed() {
                 Shared by {userProfile?.display_name || 'Unknown'}
               </p>
             </Link>
+
+            {/* Comments Toggle */}
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() =>
+                  setExpandedPostId((prev) => (prev === post.id ? null : post.id))
+                }
+                className="text-xs text-green-400 hover:underline focus:outline-none text-right"
+              >
+                {expandedPostId === post.id ? 'Hide' : 'View'} Comments
+              </button>
+            </div>
+
+            {/* Comments Section */}
+            {expandedPostId === post.id && (
+              <div className="mt-2 border-t border-zinc-700 pt-2 space-y-3">
+                {post.comments && post.comments.length > 0 ? (
+                  post.comments.map((comment) => {
+                    const commenterProfile = userProfiles.get(comment.user_id);
+                    return (
+                      <div key={comment.comment_id} className="flex items-start gap-2">
+                        <Link
+                          href={
+                            comment.user_id === session?.user?.id
+                              ? '/profile'
+                              : `/user/${comment.user_id}`
+                          }
+                          className="mt-1"
+                          >
+                          {commenterProfile?.images?.[0]?.url && (
+                            <img
+                              src={commenterProfile.images[0].url}
+                              alt={commenterProfile.display_name}
+                              className="w-6 h-6 rounded-full hover:opacity-80 transition"
+                            />
+                          )}
+                        </Link>
+                        <div>
+                        <Link
+                            href={
+                              comment.user_id === session?.user?.id
+                                ? '/profile'
+                                : `/user/${comment.user_id}`
+                            }
+                          >
+                            <p className="text-xs text-zinc-400 font-semibold hover:underline">
+                              {commenterProfile?.display_name || 'Unknown'}
+                            </p>
+                          </Link>
+                          <p className="text-sm text-zinc-300">{comment.comment}</p>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="text-sm text-zinc-500 italic">No comments yet.</p>
+                )}
+
+                {/* Comment Input (not wired up yet) */}
+                <div className="flex items-center gap-2 mt-2">
+                <input
+                    type="text"
+                    placeholder="Add a comment..."
+                    value={newComment[post.id] || ''}
+                    onChange={(e) =>
+                      setNewComment((prev) => ({ ...prev, [post.id]: e.target.value }))
+                    }
+                    className="flex-1 p-2 rounded bg-zinc-700 text-sm text-white"
+                  />
+                  <button
+                    onClick={() => handleCommentSubmit(post.id)}
+                    className="bg-green-500 hover:bg-green-600 text-black px-4 py-1 rounded text-sm font-semibold"
+                  >
+                    Post
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         );
       })}

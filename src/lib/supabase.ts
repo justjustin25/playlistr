@@ -63,6 +63,24 @@ export async function sharePlaylist({
   }
 }
 
+// Comment on a post
+export async function commentOnPost({userId, postId, comment }: {userId: string; postId: string; comment: string;}) {
+  const { data, error } = await supabase.from('comments').insert([
+    {
+      user_id: userId,
+      post_id: postId,
+      comment: comment,
+    },
+  ]).select();
+
+  if (error) {
+    console.error('Error commenting on post:', error.message);
+    return null;
+  }
+
+  return data;
+}
+
 // Fetch all posts
 export async function getAllPosts() {
   const { data, error } = await supabase
@@ -72,6 +90,22 @@ export async function getAllPosts() {
 
   if (error) {
     console.error('Error fetching posts:', error.message);
+    return [];
+  }
+
+  return data;
+}
+
+// Fetch all comments for a post
+export async function getCommentsForPost(postId: string) {
+  const { data, error } = await supabase
+    .from('comments')
+    .select('*')
+    .eq('post_id', postId)
+    .order('shared_at', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching comments:', error.message);
     return [];
   }
 

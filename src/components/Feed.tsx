@@ -87,19 +87,6 @@ export default function Feed() {
     fetchPosts();
   }, [session]);
 
-  if (loading) return (
-    <div className="text-zinc-400 text-center mt-8 flex flex-col items-center gap-2">
-      <div className="flex space-x-1">
-        <span className="w-4 h-4 bg-green-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
-        <span className="w-4 h-4 bg-green-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
-        <span className="w-4 h-4 bg-green-400 rounded-full animate-bounce" />
-      </div>
-      <span>Loading</span>
-    </div>
-  );
-
-  if (posts.length === 0) return <p className="text-zinc-400 text-center mt-8">No posts yet!</p>;
-
   async function handleCommentSubmit(postId: string) {
     const commentText = newComment[postId]?.trim();
     if (!commentText || !session?.user?.id) return;
@@ -133,7 +120,19 @@ export default function Feed() {
     // Clear input
     setNewComment((prev) => ({ ...prev, [postId]: '' }));
   }
-  
+
+  if (loading) return (
+    <div className="text-zinc-400 text-center mt-8 flex flex-col items-center gap-2">
+      <div className="flex space-x-1">
+        <span className="w-4 h-4 bg-green-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
+        <span className="w-4 h-4 bg-green-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
+        <span className="w-4 h-4 bg-green-400 rounded-full animate-bounce" />
+      </div>
+      <span>Loading</span>
+    </div>
+  );
+
+  if (posts.length === 0) return <p className="text-zinc-400 text-center mt-8">No posts yet!</p>;
 
   return (
     <div className="space-y-6 px-4">
@@ -228,7 +227,7 @@ export default function Feed() {
                               ? '/profile'
                               : `/user/${comment.user_id}`
                           }
-                          className="mt-1"
+                          className="mt-1 min-w-max"
                           >
                           {commenterProfile?.images?.[0]?.url && (
                             <img
@@ -259,10 +258,8 @@ export default function Feed() {
                   <p className="text-sm text-zinc-500 italic">No comments yet.</p>
                 )}
 
-                {/* Comment Input (not wired up yet) */}
                 <div className="flex items-center gap-2 mt-2">
-                <input
-                    type="text"
+                <textarea
                     placeholder="Add a comment..."
                     value={newComment[post.id] || ''}
                     onChange={(e) =>
@@ -270,6 +267,7 @@ export default function Feed() {
                     }
                     className="flex-1 p-2 rounded bg-zinc-700 text-sm text-white"
                   />
+                
                   <button
                     onClick={() => handleCommentSubmit(post.id)}
                     className="bg-green-500 hover:bg-green-600 text-black px-4 py-1 rounded text-sm font-semibold"
